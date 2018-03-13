@@ -2,12 +2,18 @@
 // Created by jslater on 10/03/18.
 //
 
-#include "Options.h"
-#include "Error.h"
-#include "ThreadPool.h"
-#include "PoolAllocator.h"
+#include "core/Options.h"
+#include "core/Error.h"
+#include "core/ThreadPool.h"
+#include "core/PoolAllocator.h"
 
 //#pragma pack(push, 1)
+
+struct A {
+    A(int x, int y) : x_(x), y_(y) {}
+
+    int x_, y_;
+};
 
 int main(int argc, char const *const *argv) {
     try {
@@ -21,25 +27,24 @@ int main(int argc, char const *const *argv) {
     auto start = std::chrono::high_resolution_clock::now();
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    magn::PoolAllocator allocator(32, 10, 2);
-
-    char *mem[300];
-    for (auto &i : mem) {
-        i = static_cast<char *>(allocator.allocate(32));
-        *i = 'n';
-    }
-    for (auto &i : mem) {
-        allocator.free(i);
-    }
-
-
-//    std::shared_ptr<char*> data(new char*);
-//    std::unique_ptr<magn::TaskBase> task(new magn::Task<std::unique_ptr<char*> >(data, [](std::unique_ptr<char*>) -> int {
-//        std::cout << "hello" << std::endl;
-//    }));
-//    threadPool.post(std::move(task));
+//    magn::PoolAllocator allocator(32, 10, 2);
 //
-//    for (;;);
+//    char *mem[300];
+//    for (auto &i : mem) {
+//        i = static_cast<char *>(allocator.allocate(32));
+//        *i = 'n';
+//    }
+//    for (auto &i : mem) {
+//        allocator.free(i);
+//    }
+
+    std::unique_ptr<A> a(new A(1, 2));
+    std::unique_ptr<magn::TaskBase> task(new magn::Task<A>(std::move(a), [](std::unique_ptr<A> data) -> int {
+        std::cout << "hello" << std::endl;
+    }));
+    threadPool.post(std::move(task));
+
+    for (;;);
 
     return 0;
 }
