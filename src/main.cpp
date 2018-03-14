@@ -2,10 +2,11 @@
 // Created by jslater on 10/03/18.
 //
 
-#include "core/Options.h"
-#include "core/Error.h"
-#include "core/ThreadPool.h"
-#include "core/PoolAllocator.h"
+//#define RUN_TESTS
+
+#ifndef RUN_TESTS
+
+#include "Core.h"
 
 //#pragma pack(push, 1)
 
@@ -48,3 +49,15 @@ int main(int argc, char const *const *argv) {
 
     return 0;
 }
+
+#else
+
+#define CATCH_CONFIG_RUNNER
+
+#include "Tests.h"
+
+int main(int argc, char *argv[]) {
+    return Catch::Session().run(argc, argv);
+}
+
+#endif
