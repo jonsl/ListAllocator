@@ -95,8 +95,9 @@ int main(int argc, char const *const *argv) {
 #else
 
 #define CATCH_CONFIG_RUNNER
-#include "catch.hpp"
-#include "Tests.h"
+#include <test/catch.hpp>
+
+#include "test/unitTests/UnitTests.h"
 
 int main(int argc, char *argv[]) {
     return Catch::Session().run(argc, argv);

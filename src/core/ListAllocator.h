@@ -13,16 +13,36 @@
 #include <iomanip>
 #include <set>
 #include <unordered_set>
+#include "Queue.h"
 #include "Error.h"
 
 //#define NDEBUG
+
+#define freemap_set(p) { \
+    size_type i = (uint8 *) (p) - base_; \
+    assert(i % Size_ == 0); \
+    assert(freeMap_[i / Size_] == nullptr); \
+    freeMap_[i / Size_] = (free_node_t *) (p); \
+}
+
+#define freemap_clear(p) { \
+    size_type i = (uint8 *) (p) - base_; \
+    assert(i % Size_ == 0); \
+    assert(freeMap_[i / Size_] != nullptr); \
+    freeMap_[i / Size_] = nullptr; \
+}
 
 namespace magn {
 
 template<typename T>
 class ListAllocator {
+
 public:
-    // type definitions
+
+    /*
+     * type definitions
+     */
+
     typedef T value_type;
     typedef T *pointer;
     typedef const T *const_pointer;
@@ -31,91 +51,63 @@ public:
     typedef std::size_t size_type;
     typedef std::ptrdiff_t difference_type;
 
-    struct node_t {
-        node_t() : prev_(nullptr), next_(nullptr), size_(0) {}
+    struct free_node_t {
+        free_node_t() : prev_(nullptr), next_(nullptr), size_(0) {}
 
-        explicit node_t(size_type size) : prev_(nullptr), next_(nullptr), size_(size) {}
+        explicit free_node_t(size_type size) : prev_(nullptr), next_(nullptr), size_(size) {}
 
-        node_t *prev_;
-        node_t *next_;
+        free_node_t *prev_;
+        free_node_t *next_;
         size_type size_;
     };
 
-#define queue_init(q) \
-    (q)->prev_ = (q); \
-    (q)->next_= (q)
-
-#define queue_empty(q) \
-    (q) == (q)->prev_
-
-#define queue_replace(n, i) \
-    (i)->prev_ = (n)->prev_; \
-    (i)->prev_->next_ = (i); \
-    (i)->next_ = (n)->next_; \
-    (i)->next_->prev_ = (i)
-
-#define queue_dequeue(n) \
-    (n)->prev_->next_ = (n)->next_; \
-    (n)->next_->prev_ = (n)->prev_;
-
-#define queue_insert_after(n, i) \
-    (i)->next_ = (n)->next_; \
-    (i)->next_->prev_ = (i); \
-    (i)->prev_ = (n); \
-    (n)->next_ = (i)
-
-#define queue_insert_before(n, i) \
-    (i)->next_ = (n); \
-    (i)->next_->prev_ = (i); \
-    (i)->prev_ = (n)->prev_; \
-    (i)->prev_->next_ = (n)
-
-#define queue_swap(n1, n2) {\
-    node_t* temp = (n1); \
-    (n1)->prev_ = (n2)->prev_; \
-    (n1)->next_ = (n2)->next_; \
-    (n2)->prev_ = temp->prev_; \
-    (n2)->next_ = temp->next_; \
-}
-
-#define freemap_store(p) { \
-    size_type i = (uint8 *) p - base_; \
-    assert(i % sizeof(T) == 0); \
-    freeMap_[i / sizeof(T)] = (node_t *) p; \
-}
-
     ListAllocator()
-            : freeList_(nullptr),
-              freeMap_(nullptr),
+            :
 #ifndef NDEBUG
-              nonfree_(nullptr),
+            nonfree_(nullptr),
 #endif
-              freeCount_(0) {
+            base_(nullptr),
 
-        size_type size = sizeof(T) * Num;
-        size += sizeof(node_t *) * Num;
+            freeList_(0),
+            freeCount_(0),
+
+            freeMap_(nullptr) {
+
+        size_type size = Size_ * Num_;
+        size += sizeof(free_node_t *) * Num_;
 #ifndef NDEBUG
-        size += sizeof(char) * Num;
+        size += sizeof(char) * Num_;
 #endif
-        base_ = (uint8 *) malloc(size);
+
+        base_ = (uint8 *) ::malloc(size);
+        if (!base_) {
+
+            /*
+             * no space
+             */
+            throw std::bad_alloc();
+
+        }
         memset(base_, 0, size);
 
         uint8 *p = base_;
+        queue_init(&freeList_);
+        p += Size_ * Num_;
 
-        freeList_ = new(p) node_t(sizeof(T) * Num);
-        queue_init(freeList_);
-        ++freeCount_;
-        p += sizeof(T) * Num;
-
-        freeMap_ = (node_t **) p;
-        p += sizeof(node_t *) * Num;
+        freeMap_ = (free_node_t **) p;
+        p += sizeof(free_node_t *) * Num_;
 
 #ifndef NDEBUG
         nonfree_ = (char *) p;
-        p += sizeof(char) * Num;
+        p += sizeof(char) * Num_;
         assert(p == base_ + size);
 #endif
     };
+
+    ~ListAllocator() {
+        ::free(base_);
+        base_ = nullptr;
+    }
 
     // allocate but don't initialize num elements of type T
     pointer allocate(size_type num, const void * = nullptr) {
@@ -153,173 +145,253 @@ public:
                   << " at: [" << (void *) p << "]"
                   << " dump:" << std::endl;
         printFree();
+
+//        defrag();
+//
+//        std::cout << "defrag dump:" << std::endl;
+//        printFree();
     }
 
 private:
-
-    uint8 *base_;
-
-    node_t *freeList_;
-    uint32 freeCount_;
-
-    node_t **freeMap_;
 
 #ifndef NDEBUG
     char *nonfree_;
 #endif
 
+    uint8 *base_;
+
+    free_node_t freeList_;
+    uint32 freeCount_;
+
+    free_node_t **freeMap_;
+
+
     pointer removeFree(size_type num, const void * = nullptr) {
 
-        if (!freeList_) {
+        if (queue_empty(&freeList_)) {
 
-            throw ListAllocatorUnderflowError();
+            /*
+             * add base_ to queue
+             */
+            auto newNode = new(base_) free_node_t(Size_ * Num_);
+
+            queue_insert_after(&freeList_, newNode);
+
+            freemap_set(freeList_.next_);
+
+            ++freeCount_;
+        }
+
+        /*
+         * find suitable space
+         */
+
+        size_type sizeRequested = Size_ * num;
+
+        free_node_t *node = freeList_.next_;
+        free_node_t *last = nullptr;
+
+        size_type i = 0;
+
+        bool found = false;
+
+        while (i++ < freeCount_) {
+
+            if (std::less_equal<size_type>()(sizeRequested, node->size_)) {
+
+                found = true;
+
+                break;
+            }
+
+            last = node;
+            node = node->next_;
+        }
+
+        if (!found) {
+
+            /*
+             * no space
+             */
+
+            throw std::bad_alloc();
+        }
+
+        free_node_t **ppRemove = nullptr;
+
+        if (last) {
+
+            /*
+             * space at node other than head
+             */
+
+            ppRemove = &last;
 
         } else {
 
-            size_type sizeRequested = sizeof(T) * num;
+            /*
+             * space at head
+             */
 
-            node_t *node = freeList_;
-            node_t *last = nullptr;
+            ppRemove = &freeList_.next_;
+        }
 
-            for (int i = 0; i < freeCount_
-                            && std::greater_equal<size_type>()(sizeRequested, node->size_); ++i) {
-                last = node;
-                node = node->next_;
+        free_node_t *space = *ppRemove;
+
+        if ((*ppRemove)->size_ - sizeRequested < sizeof(free_node_t)) {
+
+            /*
+             * space cannot be split up
+             */
+
+            queue_dequeue(space);
+
+            if (freeCount_ == 1) {
+
+                /*
+                 * used all possible space
+                 */
+
+                queue_init(&freeList_);
             }
 
-            node_t *removed = nullptr;
+            --freeCount_;
 
-            if (last) {
-                // remove
+            freemap_clear(space);
 
-                queue_dequeue(last);
-                --freeCount_;
+            return (pointer) space;
+        }
 
-                removed = last;
+        /*
+         * space can be split up
+         */
 
-                if (removed->size_ - sizeRequested >= sizeof(node_t)) {
+        uint8 *p = (uint8 *) space + sizeRequested;
+        auto newNode = new(p)free_node_t(space->size_ - sizeRequested);
 
-                    // split
+        queue_insert_after(space, newNode);
+        ++freeCount_;
+        freemap_set(p);
 
-                    uint8 *p = (uint8 *) removed + sizeRequested;
-                    auto newNode = new(p)node_t(removed->size_ - sizeRequested);
+        queue_dequeue(space);
+        --freeCount_;
+        freemap_clear(space);
 
-                    queue_replace(removed, newNode);
-                    ++freeCount_;
+        *ppRemove = newNode;
 
-                    freemap_store(p);
-                }
-
-            } else {
-                // head
-
-                // remove
-
-                queue_dequeue(freeList_);
-                --freeCount_;
-
-                removed = freeList_;
-                freeList_ = nullptr;
-
-                if (removed->size_ - sizeRequested >= sizeof(node_t)) {
-
-                    // split
-
-                    uint8 *p = (uint8 *) removed + sizeRequested;
-                    auto newNode = new(p)node_t(removed->size_ - sizeRequested);
-
-                    queue_replace(removed, newNode);
-                    ++freeCount_;
-
-                    freemap_store(p);
-
-                    freeList_ = newNode;
-                }
-
-                if (!freeList_) {
-                    throw ListAllocatorUnderflowError();
-                }
-            }
 #ifndef NDEBUG
-            size_type i = (uint8 *) removed - base_;
-            assert(i < Num);
-            ++nonfree_[i];
-            assert(nonfree_[i] == 1);
+        i = ((uint8 *) space - base_) / Size_;
+        assert(i < Num_);
+        ++nonfree_[i];
+        assert(nonfree_[i] == 1);
 #endif
 
-            return (pointer) removed;
-        }
+        return (pointer) space;
     }
 
     void addFree(pointer p, size_type num) {
 
-        if (!freeList_) {
+        if ((uint8 *) p < base_ || (uint8 *) p >= base_ + Size_ * Num_) {
 
-            throw ListAllocatorUnderflowError();
+            /*
+             * unknown memory
+             */
+
+            throw std::bad_alloc();
+        }
+
+        size_type sizeReturned = Size_ * num;
+
+        free_node_t *node = freeList_.next_;
+        free_node_t *last = nullptr;
+
+        size_type i = 0;
+
+        while (i++ < freeCount_) {
+
+            if (std::less_equal<size_type>()(sizeReturned, node->size_)) {
+
+                break;
+            }
+
+            last = node;
+            node = node->next_;
+        }
+
+        free_node_t **ppNode = nullptr;
+
+        auto newNode = new(p)free_node_t(sizeReturned);
+
+        if (last) {
+
+            /*
+             * space at node other than head
+             */
+
+            ppNode = &last;
+
+            queue_insert_after(last, newNode);
 
         } else {
 
-            size_type sizeReturned = sizeof(T) * num;
+            /*
+             * space at head
+             */
 
-            node_t *node = freeList_;
-            node_t *last = nullptr;
-            for (int i = 0; i < freeCount_
-                            && std::greater_equal<size_type>()(sizeReturned, node->size_); ++i) {
-                last = node;
-                node = node->next_;
-            }
+            ppNode = &freeList_.next_;
 
-            if (last) {
-                // insert
+            queue_insert_before(freeList_.next_, newNode);
+        }
 
-                node = last;
-                auto newNode = new(p)node_t(sizeReturned);
+        ++freeCount_;
 
-                queue_insert_after(node, newNode);
-                ++freeCount_;
+        freemap_set(p);
 
-                freemap_store(p);
-
-            } else {
-                // head
-
-                // insert
-
-                node = freeList_;
-                auto newNode = new(p)node_t(sizeReturned);
-
-                queue_insert_before(node, newNode);
-                ++freeCount_;
-
-                freemap_store(p);
-
-                freeList_ = newNode;
-            }
+        *ppNode = newNode;
 
 #ifndef NDEBUG
-            size_type i = (uint8 *) p - base_;
-            assert(i < Num);
-            --nonfree_[i];
-            assert(nonfree_[i] == 0);
+        i = ((uint8 *) p - base_) / Size_;
+        assert(i < Num_);
+        --nonfree_[i];
+        assert(nonfree_[i] == 0);
 #endif
-        }
     }
 
     void defrag() {
-        size_type const size = Num * sizeof(T);
-        node_t *node = freeList_;
-        node_t *last = nullptr;
+        size_type const size = Size_ * Num_;
+        free_node_t *node = freeList_.next_;
         for (int i = 0; i < freeCount_; ++i) {
             uint8 *next = (uint8 *) node + node->size_;
             if (next < base_ + size) {
+                size_type mi = (next - base_) / Size_;
+                auto n = freeMap_[mi];
+                if (n) {
+
+                    // merge
+
+                    queue_dequeue(n);
+                    --freeCount_;
+
+                    queue_dequeue(node);
+                    --freeCount_;
+
+                    if (freeCount_ == 0) {
+                        queue_init(&freeList_);
+                    }
+
+                    node->size_ += n->size_;
+
+                    addFree((T *) node, node->size_ / Size_);
+
+                    return;
+                }
             }
-            last = node;
             node = node->next_;
         }
     }
 
     void printFree() {
-        node_t *node = freeList_;
+        free_node_t *node = freeList_.next_;
         for (int i = 0; i < freeCount_; ++i) {
             std::cout << "\t[" << (void *) node << "]:" << "l:" << (void *) node->prev_ << "|r:" << (void *) node->next_
                       << "|s:" << node->size_ << " " << std::endl;
@@ -328,7 +400,9 @@ private:
         std::cout << std::endl;
     }
 
-    static constexpr size_type Num = 4096;
+    static constexpr size_type Num_ = 4096;
+
+    static constexpr size_type Size_ = sizeof(T);
 };
 
 }
