@@ -61,16 +61,46 @@ public:
         size_type size_;
     };
 
-    ListAllocator()
-            :
-#ifndef NDEBUG
-    nonfree_(nullptr),
-#endif
-            base_(nullptr),
+    // rebind allocator to type U
+    template<class U>
+    struct rebind {
+        typedef ListAllocator<U> other;
+    };
 
-            freeList_(0),
+    // return address of values
+    pointer address(reference value) const {
+        return &value;
+    }
 
-            freeMap_(nullptr) {
+    const_pointer address(const_reference value) const {
+        return &value;
+    }
+
+    /* constructors and destructor
+     * - nothing to do because the allocator has no state
+     */
+    ListAllocator(const ListAllocator &) throw() {
+
+
+    }
+
+    template<class U>
+    ListAllocator(const ListAllocator<U> &) throw() {
+    }
+
+
+    ListAllocator() throw()
+//            :
+//#ifndef NDEBUG
+//            nonfree_(nullptr),
+//#endif
+//            base_(nullptr),
+//
+//            freeList_(0),
+//
+//            freeMap_(nullptr)
+    {
+
 
         size_type size = Size_ * Num_;
         size += sizeof(free_node_t *) * Num_;
@@ -107,9 +137,14 @@ public:
 
     }
 
-    ~ListAllocator() {
+    ~ListAllocator() throw() {
         ::free(base_);
         base_ = nullptr;
+    }
+
+    // return maximum number of elements that can be allocated
+    size_type max_size() const throw() {
+        return Num_;
     }
 
     // allocate but don't initialize num elements of type T
@@ -153,20 +188,20 @@ public:
         printFree();
 #endif
 
-        flattenFree();
+        coalesceFree();
     }
 
 private:
 
 #ifndef NDEBUG
-    char *nonfree_;
+    static char *nonfree_;
 #endif
 
-    uint8 *base_;
+    static uint8 *base_;
 
-    free_node_t freeList_;
+    static free_node_t freeList_;
 
-    free_node_t **freeMap_;
+    static free_node_t **freeMap_;
 
 
     void initFree() {
@@ -203,6 +238,8 @@ private:
 
         size_type sizeRequested = Size_ * num;
 
+        free_node_t const *const q = &freeList_;
+
         free_node_t *node = freeList_.next_;
         free_node_t *last = nullptr;
 
@@ -210,9 +247,9 @@ private:
 
         bool found = false;
 
-        while (node != &freeList_) {
+        while (node != q) {
 
-            if (std::less_equal<size_type>()(sizeRequested, node->size_)) {
+            if (sizeRequested <= node->size_) {
 
                 found = true;
 
@@ -240,15 +277,15 @@ private:
              * space can be split up
              */
 
-            free_node_t *before = nullptr;
+            free_node_t *prev = nullptr;
 
             if (last) {
 
-                before = last;
+                prev = last;
 
             } else {
 
-                before = &freeList_;
+                prev = &freeList_;
 
             }
 
@@ -259,14 +296,14 @@ private:
 #ifndef NDEBUG
             std::cout << "=> inserting: " << (void *) newNode << ", of size: " << newNode->size_ << std::endl;
 #endif
-            queue_insert_after(before, newNode);
+            queue_insert_after(prev, newNode);
 
             freemap_set(p);
 
         }
 
 #ifndef NDEBUG
-            std::cout << "=> removing: " << (void *) remove << ", of size: " << sizeRequested << std::endl;
+        std::cout << "=> removing: " << (void *) remove << ", of size: " << sizeRequested << std::endl;
 #endif
         queue_dequeue(remove);
 
@@ -313,7 +350,7 @@ private:
 #endif
     }
 
-    void flattenFree() {
+    void coalesceFree() {
 
         if (queue_empty(&freeList_)) {
             return;
@@ -378,19 +415,22 @@ private:
         }
 
 #ifndef NDEBUG
-        std::cout << "flattenFree dump:" << std::endl;
+        std::cout << "coalesceFree dump:" << std::endl;
         printFree();
 #endif
     }
 
 #ifndef NDEBUG
+
     void printFree() {
 
         size_type totalFree = 0;
 
         free_node_t *node = freeList_.next_;
 
-        while (node != &freeList_) {
+        free_node_t const *const q = &freeList_;
+
+        while (node != q) {
 
             std::cout << "\t[" << (void *) node << "]:" << "p:" << (void *) node->prev_ << "|n:" << (void *) node->next_
                       << "|s:" << node->size_ << " " << std::endl;
@@ -400,14 +440,40 @@ private:
             node = node->next_;
         }
 
-        std::cout << "total free: " << totalFree << std::endl;
+        std::cout << "\ttotal free: " << totalFree << std::endl;
     }
+
 #endif
 
     static constexpr size_type Num_ = 4096;
 
     static constexpr size_type Size_ = sizeof(T) > sizeof(free_node_t) ? sizeof(T) : sizeof(free_node_t);
 };
+
+// return that all specializations of this allocator are interchangeable
+template<class T1, class T2>
+bool operator==(const ListAllocator<T1> &, const ListAllocator<T2> &) throw() {
+    return true;
+}
+
+template<class T1, class T2>
+bool operator!=(const ListAllocator<T1> &, const ListAllocator<T2> &) throw() {
+    return false;
+}
+
+#ifndef NDEBUG
+template<typename T>
+char *ListAllocator<T>::nonfree_ = nullptr;
+#endif
+
+template<typename T>
+uint8 *ListAllocator<T>::base_ = nullptr;
+
+template<typename T>
+typename ListAllocator<T>::free_node_t ListAllocator<T>::freeList_;
+
+template<typename T>
+typename ListAllocator<T>::free_node_t **ListAllocator<T>::freeMap_ = nullptr;
 
 }
 

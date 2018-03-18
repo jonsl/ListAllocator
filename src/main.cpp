@@ -52,15 +52,95 @@ int main(int argc, char const *const *argv) {
 //        allocator.addFree(i);
 //    }
 
-    magn::ListAllocator<char> allocator;
 
-    char* first = allocator.allocate(300);
-    char* second = allocator.allocate(100);
-    char* third = allocator.allocate(200);
+//    magn::ListAllocator<std::string> stringAlloc;
+////    std::cout << "stringAlloc.max_size(): " << stringAlloc.max_size() << std::endl;
+//
+//    std::string* myString = stringAlloc.allocate(3);
+//
+//    stringAlloc.construct(myString, "Hello");
+//    stringAlloc.construct(myString + 1, "World");
+//    stringAlloc.construct(myString + 2, "!");
+//
+//    std::cout << myString[0] << " " << myString[1] << " " << myString[2] << std::endl;
+//
+//    stringAlloc.destroy(myString);
+//    stringAlloc.destroy(myString + 1);
+//    stringAlloc.destroy(myString + 2);
+//    stringAlloc.deallocate(myString, 3);
 
-    allocator.deallocate(first, 300);
-    allocator.deallocate(third, 200);
-    allocator.deallocate(second, 100);
+
+    magn::ListAllocator<magn::Task<int>> allocator;
+
+    std::size_t sizeofAllocator = sizeof(allocator);
+
+    std::vector<magn::Task<int>, magn::ListAllocator<magn::Task<int>>> c(allocator);
+
+    // add some
+
+    int i;
+    for (i = 0; i < 300; ++i) {
+
+        uint32 priority = (uint32) std::rand();
+
+        magn::Task<int> t(priority, 25, [](int const &data) -> int {
+
+            std::cout << "data: " << data << std::endl;
+        });
+
+        c.push_back(t);
+
+    }
+
+    // delete some
+
+    auto it = c.begin();
+    for (i = 0; it != c.end() && i < 20; ++i) {
+
+        it = c.erase(it);
+
+    }
+
+    // add some
+
+    for (i = 0; i < 600; ++i) {
+
+        uint32 priority = (uint32) std::rand();
+
+        magn::Task<int> t(priority, 25, [](int const &data) -> int {
+
+            std::cout << "data: " << data << std::endl;
+        });
+
+        c.push_back(t);
+
+    }
+
+
+
+
+//    c.emplace_back(magn::Task<int>(100, 25, [](int const &data) -> int {
+//        std::cout << "data: " << data << std::endl;
+//    }));
+//    c.emplace_back(magn::Task<int>(200, 10, [](int const &data) -> int {
+//        std::cout << "data: " << data << std::endl;
+//    }));
+//    c.emplace_back(magn::Task<int>(50, 91, [](int const &data) -> int {
+//        std::cout << "data: " << data << std::endl;
+//    }));
+//    c.emplace_back(magn::Task<int>(125, 307, [](int const &data) -> int {
+//        std::cout << "data: " << data << std::endl;
+//    }));
+
+
+
+//    magn::TaskBase* first = allocator.allocate(300);
+//    magn::TaskBase* second = allocator.allocate(100);
+//    magn::TaskBase* third = allocator.allocate(200);
+//
+//    allocator.deallocate(first, 300);
+//    allocator.deallocate(third, 200);
+//    allocator.deallocate(second, 100);
 
 //    magn::Queue<A> queue;
 //
