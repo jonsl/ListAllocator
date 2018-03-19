@@ -25,6 +25,8 @@ public:
     using propagate_on_container_move_assignment = std::true_type;
     using propagate_on_container_swap = std::true_type;
 
+    ListAllocator() = delete;
+
     explicit ListAllocator(Allocator<T> *a)
             :
             allocator_(a) {

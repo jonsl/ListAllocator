@@ -75,7 +75,7 @@ int main(int argc, char const *const *argv) {
 
     magn::Allocator<magn::Task<int >> allocator_2(2048);
 
-    std::vector<magn::Task<int>, magn::SA<magn::Task<int>>> store(&allocator_2);
+    std::vector<magn::Task<int>, magn::SA<magn::Task<int>>> v(&allocator_2);
 
 //    class TaskCompare {
 //    public:
@@ -83,14 +83,15 @@ int main(int argc, char const *const *argv) {
 //            return lhs.getPriority() < rhs.getPriority();
 //        }
 //    };
-//
-//    std::priority_queue<
-//            magn::Task<int>,
-//            std::vector<
-//                    magn::Task<int>,
-//                    magn::Allocator<magn::Task<int>
-//                    >
-//            >> priorityQ;
+
+    std::priority_queue<
+            magn::Task<int>,
+            std::vector<
+                    magn::Task<int>,
+                    magn::SA<magn::Task<int>>
+            >,
+            std::less<magn::Task<int >>
+    > priorityQ(std::less<magn::Task<int >>(), v);
 
     // add some
 
@@ -104,27 +105,27 @@ int main(int argc, char const *const *argv) {
             std::cout << "data: " << data << std::endl;
         });
 
-//        priorityQ.push(t);
+        priorityQ.push(t);
 
-        store.push_back(t);
+//        v.push_back(t);
 
     }
 
     // delete some
 
-//    while (!priorityQ.empty()) {
-//
-//        priorityQ.pop();
-//    }
+    while (!priorityQ.empty()) {
 
-
-
-    auto it = store.begin();
-    for (i = 0; it != store.end() && i < 20; ++i) {
-
-        it = store.erase(it);
-
+        priorityQ.pop();
     }
+
+
+
+//    auto it = v.begin();
+//    for (i = 0; it != v.end() && i < 20; ++i) {
+//
+//        it = v.erase(it);
+//
+//    }
 
     // add some
 
@@ -137,15 +138,15 @@ int main(int argc, char const *const *argv) {
             std::cout << "data: " << data << std::endl;
         });
 
-//        priorityQ.push(t);
-        store.push_back(t);
+        priorityQ.push(t);
+//        v.push_back(t);
 
     }
 
-//    while (!priorityQ.empty()) {
-//        std::cout << priorityQ.top().getPriority() << std::endl;
-//        priorityQ.pop();
-//    }
+    while (!priorityQ.empty()) {
+        std::cout << priorityQ.top().getPriority() << std::endl;
+        priorityQ.pop();
+    }
 
 
 
