@@ -6,6 +6,7 @@
 
 #ifndef RUN_TESTS
 
+#include <core/ListAllocator.h>
 #include "Core.h"
 
 //#pragma pack(push, 1)
@@ -53,7 +54,7 @@ int main(int argc, char const *const *argv) {
 //    }
 
 
-//    magn::ListAllocator<std::string> stringAlloc;
+//    magn::Allocator<std::string> stringAlloc;
 ////    std::cout << "stringAlloc.max_size(): " << stringAlloc.max_size() << std::endl;
 //
 //    std::string* myString = stringAlloc.allocate(3);
@@ -70,34 +71,58 @@ int main(int argc, char const *const *argv) {
 //    stringAlloc.deallocate(myString, 3);
 
 
-    magn::ListAllocator<magn::Task<int>> allocator;
+    magn::Allocator<magn::Task<int >> allocator_1(4096);
 
-    std::size_t sizeofAllocator = sizeof(allocator);
+    magn::Allocator<magn::Task<int >> allocator_2(2048);
 
-    std::vector<magn::Task<int>, magn::ListAllocator<magn::Task<int>>> c(allocator);
+    std::vector<magn::Task<int>, magn::SA<magn::Task<int>>> store(&allocator_2);
+
+//    class TaskCompare {
+//    public:
+//        bool operator()(magn::Task<int> const &lhs, magn::Task<int> const &rhs) const {
+//            return lhs.getPriority() < rhs.getPriority();
+//        }
+//    };
+//
+//    std::priority_queue<
+//            magn::Task<int>,
+//            std::vector<
+//                    magn::Task<int>,
+//                    magn::Allocator<magn::Task<int>
+//                    >
+//            >> priorityQ;
 
     // add some
 
     int i;
     for (i = 0; i < 300; ++i) {
 
-        uint32 priority = (uint32) std::rand();
+        auto priority = (uint32) std::rand();
 
         magn::Task<int> t(priority, 25, [](int const &data) -> int {
 
             std::cout << "data: " << data << std::endl;
         });
 
-        c.push_back(t);
+//        priorityQ.push(t);
+
+        store.push_back(t);
 
     }
 
     // delete some
 
-    auto it = c.begin();
-    for (i = 0; it != c.end() && i < 20; ++i) {
+//    while (!priorityQ.empty()) {
+//
+//        priorityQ.pop();
+//    }
 
-        it = c.erase(it);
+
+
+    auto it = store.begin();
+    for (i = 0; it != store.end() && i < 20; ++i) {
+
+        it = store.erase(it);
 
     }
 
@@ -105,17 +130,22 @@ int main(int argc, char const *const *argv) {
 
     for (i = 0; i < 600; ++i) {
 
-        uint32 priority = (uint32) std::rand();
+        auto priority = (uint32) std::rand();
 
         magn::Task<int> t(priority, 25, [](int const &data) -> int {
 
             std::cout << "data: " << data << std::endl;
         });
 
-        c.push_back(t);
+//        priorityQ.push(t);
+        store.push_back(t);
 
     }
 
+//    while (!priorityQ.empty()) {
+//        std::cout << priorityQ.top().getPriority() << std::endl;
+//        priorityQ.pop();
+//    }
 
 
 
