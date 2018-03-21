@@ -27,7 +27,7 @@ public:
 
     ListAllocator() = delete;
 
-    explicit ListAllocator(Allocator<T> *a)
+    explicit ListAllocator(Allocator<> *a)
             :
             allocator_(a) {
     }
@@ -61,7 +61,7 @@ public:
 
 private:
 
-    Allocator<T> *allocator_;
+    Allocator<> *allocator_;
 
 };
 

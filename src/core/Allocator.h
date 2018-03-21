@@ -11,61 +11,34 @@
 #include <cstring>
 #include <cassert>
 #include <iostream>
+#include <limits>
 #include "Config.h"
-#include "Queue.h"
-
-#define freemap_set(p) { \
-    std::size_t i = (uint8 *) (p) - base_; \
-    assert(i % Size_ == 0); \
-    assert(freeMap_[i / Size_] == nullptr); \
-    freeMap_[i / Size_] = (free_node_t *) (p); \
-}
-
-#define freemap_clear(p) { \
-    std::size_t i = (uint8 *) (p) - base_; \
-    assert(i % Size_ == 0); \
-    assert(freeMap_[i / Size_] != nullptr); \
-    freeMap_[i / Size_] = nullptr; \
-}
+#include "List.h"
 
 
 namespace magn {
 
-template<typename T>
+template<std::size_t alignment = alignof(std::max_align_t)>
 class Allocator {
 
     struct free_node_t {
-        free_node_t() : prev_(nullptr), next_(nullptr), size_(0) {}
+        explicit free_node_t(std::size_t size) : next_(nullptr), size_(size) {}
 
-        explicit free_node_t(std::size_t size) : prev_(nullptr), next_(nullptr), size_(size) {}
-
-        free_node_t *prev_;
         free_node_t *next_;
         std::size_t size_;
     };
 
 public:
 
-    explicit Allocator(std::size_t num)
+    explicit Allocator(std::size_t size)
             :
-#ifndef NDEBUG
-            nonfree_(nullptr),
-#endif
             base_(nullptr),
 
-            num_(0),
+            freeList_(0) {
 
-            freeList_(0),
+        std::size_t offset = alignment - 1;
 
-            freeMap_(nullptr) {
-
-        std::size_t total = Size_ * num;
-        total += sizeof(free_node_t *) * num;
-#ifndef NDEBUG
-        total += sizeof(char) * num;
-#endif
-
-        base_ = (uint8 *) ::malloc(total);
+        base_ = (uint8 *) ::malloc(size + offset);
         if (!base_) {
 
             /*
@@ -74,25 +47,18 @@ public:
             throw std::bad_alloc();
 
         }
-        ::memset(base_, 0, total);
+        ::memset(base_, 0, size);
 
-        num_ = num;
+        list_init(&freeList_);
+        freeList_.size_ = size;
 
-        queue_init(&freeList_);
+        auto node = new((uint8 *) (((size_t) base_ + offset) & ~(alignment - 1))) free_node_t(size);
 
-        uint8 *p = base_;
-        p += Size_ * num_;
-
-        freeMap_ = (free_node_t **) p;
-        p += sizeof(free_node_t *) * num_;
+        list_insert_after(&freeList_, node);
 
 #ifndef NDEBUG
-        nonfree_ = (char *) p;
-        p += sizeof(char) * num_;
-        assert(p == base_ + total);
+        printFree();
 #endif
-
-        initFree();
     }
 
     Allocator(Allocator const &) = delete;
@@ -105,12 +71,11 @@ public:
     }
 
     void *
-    allocate(std::size_t n) {
-        void *ret = removeFree(n);
+    allocate(std::size_t size) {
+        void *ret = removeFree(size);
 
 #ifndef NDEBUG
-        std::cout << "allocated " << n << " element(s)"
-                  << " of size " << Size_
+        std::cout << "allocated size " << size
                   << " at: [" << (void *) ret << "]"
                   << " dump:" << std::endl;
         printFree();
@@ -120,282 +85,156 @@ public:
     }
 
     void
-    deallocate(void *p, std::size_t n) {
-        addFree(p, n);
+    deallocate(void *p, std::size_t size) {
+        addFree(p, size);
 
 #ifndef NDEBUG
-        std::cout << "deallocated " << n << " element(s)"
-                  << " of size " << Size_
+        std::cout << "deallocated size " << size
                   << " at: [" << (void *) p << "]"
                   << " dump:" << std::endl;
         printFree();
 #endif
-
-        coalesceFree();
-    }
-
-    size_t getNum() const {
-        return num_;
     }
 
 private:
 
-#ifndef NDEBUG
-    char *nonfree_;
-#endif
-
     uint8 *base_;
-
-    std::size_t num_;
 
     free_node_t freeList_;
 
-    free_node_t **freeMap_;
+    void *
+    removeFree(std::size_t size) noexcept {
 
-
-    void initFree() {
-        auto newNode = new(base_) free_node_t(Size_ * num_);
-
-#ifndef NDEBUG
-        std::cout << "=> inserting into freeList: " << (void *) newNode << ", of size: " << newNode->size_ << std::endl;
-#endif
-        queue_insert_after(&freeList_, newNode);
-
-        freemap_set(newNode);
-
-        assert((uint8 *) freeList_.next_ == base_);
-
-#ifndef NDEBUG
-        printFree();
-#endif
-    }
-
-    void *removeFree(std::size_t n) {
-
-        if (queue_empty(&freeList_)) {
+        if (list_empty(&freeList_)) {
 
             /*
              * no space
              */
 
-            throw std::bad_alloc();
+            return nullptr;
         }
 
         /*
          * find suitable space
          */
 
-        std::size_t sizeRequested = Size_ * n;
-
-        free_node_t const *const q = &freeList_;
-
-        free_node_t *node = freeList_.next_;
-        free_node_t *last = nullptr;
-
-        std::size_t i = 0;
-
-        bool found = false;
-
-        while (node != q) {
-
-            if (sizeRequested <= node->size_) {
-
-                found = true;
-
-                break;
-            }
-
-            last = node;
-            node = node->next_;
-        }
-
-        if (!found) {
-
-            /*
-             * no space
-             */
-
-            throw std::bad_alloc();
-        }
-
-        free_node_t *remove = node;
-
-        if (node->size_ - sizeRequested >= sizeof(free_node_t)) {
-
-            /*
-             * space can be split up
-             */
-
-            free_node_t *prev = nullptr;
-
-            if (last) {
-
-                prev = last;
-
-            } else {
-
-                prev = &freeList_;
-
-            }
-
-            uint8 *p = (uint8 *) remove + sizeRequested;
-
-            auto newNode = new(p)free_node_t(remove->size_ - sizeRequested);
-
-#ifndef NDEBUG
-            std::cout << "=> inserting: " << (void *) newNode << ", of size: " << newNode->size_ << std::endl;
-#endif
-
-            queue_insert_after(prev, newNode);
-
-            freemap_set(p);
-        }
-
-#ifndef NDEBUG
-        std::cout << "=> removing: " << (void *) remove << ", of size: " << sizeRequested << std::endl;
-#endif
-
-        queue_dequeue(remove);
-
-        freemap_clear(remove);
-
-#ifndef NDEBUG
-        i = ((uint8 *) remove - base_) / Size_;
-        assert(i < num_);
-        ++nonfree_[i];
-        assert(nonfree_[i] == 1);
-#endif
-
-        return (void *) remove;
-    }
-
-    void addFree(void *p, std::size_t num) {
-
-        if ((uint8 *) p < base_ || (uint8 *) p >= base_ + Size_ * num_) {
-
-            /*
-             * unknown memory
-             */
-
-            throw std::bad_alloc();
-        }
-
-        std::size_t const sizeReturned = Size_ * num;
-
-        /*
-         * insert new after before
-         */
-
-        auto newNode = new(p)free_node_t(sizeReturned);
-
-        queue_insert_after(&freeList_, newNode);
-
-        freemap_set(p);
-
-#ifndef NDEBUG
-        std::size_t i = ((uint8 *) p - base_) / Size_;
-        assert(i < num_);
-        --nonfree_[i];
-        assert(nonfree_[i] == 0);
-#endif
-    }
-
-    void coalesceFree() {
-
-        if (queue_empty(&freeList_)) {
-            return;
-        }
-
-        free_node_t const *const q = &freeList_;
-
-        /*
-         * merge adjacent nodes
-         */
-
+        free_node_t *prev = &freeList_;
         free_node_t *node = freeList_.next_;
 
-        while (node != q) {
+        size_t blocks = (size + sizeof(free_node_t) - 1) / sizeof(free_node_t);
 
-            uint8 *next = (uint8 *) node + node->size_;
-            if (next < base_ + Size_ * num_) {
+        do {
 
-                auto n = freeMap_[(next - base_) / Size_];
-                if (n) {
+            if (node->size_ >= blocks) {
+
+                if (node->size_ == blocks) {
 
                     /*
-                     * n is directly after node
-                     * => abosorb n into node
+                     * remove node
                      */
 
-                    node->size_ += n->size_;
+                    list_dequeue(node, prev);
 
-                    queue_dequeue(n);
+                } else {
 
-                    freemap_clear(n);
+                    /*
+                     * split node
+                     */
 
+                    node->size_ -= blocks;
+
+                    node += node->size_;
                 }
+
+                freeList_.size_ -= blocks;
+
+                return node;
             }
+
+            prev = node;
+
             node = node->next_;
-        }
+
+        } while (node != &freeList_);
 
         /*
-         * insertion sort
+         * no space
          */
 
-        node = freeList_.next_->next_;
-
-        while (node != q) {
-
-            free_node_t *prev = node->prev_;
-
-            queue_dequeue(node);
-
-            do {
-                if (prev->size_ <= node->size_) {
-                    break;
-                }
-
-                prev = prev->prev_;
-
-            } while (prev != q);
-
-            queue_insert_after(prev, node);
-
-            node = node->next_;
-        }
-
-#ifndef NDEBUG
-        std::cout << "coalesceFree dump:" << std::endl;
-        printFree();
-#endif
+        return nullptr;
     }
 
-#ifndef NDEBUG
+    void
+    addFree(void *p, std::size_t size) {
 
-    void printFree() {
+        /*
+         * insert new in address order
+         */
 
-        std::size_t totalFree = 0;
+        size_t blocks = (size + sizeof(free_node_t) - 1) / sizeof(free_node_t);
 
+        free_node_t *prev = &freeList_;
         free_node_t *node = freeList_.next_;
 
-        free_node_t const *const q = &freeList_;
+        while (p > node && node != &freeList_) {
 
-        while (node != q) {
-
-            std::cout << "\t[" << (void *) node << "]:" << "p:" << (void *) node->prev_ << "|n:" << (void *) node->next_
-                      << "|s:" << node->size_ << " " << std::endl;
-
-            totalFree += node->size_;
-
+            prev = node;
             node = node->next_;
         }
 
-        std::cout << "\ttotal free: " << totalFree << std::endl;
+        if (prev != &freeList_ && prev + prev->size_ == p) {
+
+            prev->size_ += blocks;
+
+            std::cout << "merge prev" << std::endl;
+
+        } else {
+
+            auto ins = new(p) free_node_t(blocks);
+            list_insert_after(prev, ins);
+
+            prev = ins;
+
+            std::cout << "not merge prev" << std::endl;
+        }
+
+        if (node != &freeList_ && prev + prev->size_ == node) {
+
+            prev->size_ += node->size_;
+
+            list_dequeue(node, prev);
+
+            std::cout << "merge next" << std::endl;
+        }
+
+        freeList_.size_ += blocks;
+
+    }
+
+#ifndef NDEBUG
+
+    void
+    printFree() {
+
+        free_node_t *node = &freeList_;
+        do {
+
+            std::cout << "\t[" << (void *) node << "->" << (void *) (node + node->size_) << "]:" << "n:"
+                      << (void *) node->next_ << "|s:" << node->size_ << " " << std::endl;
+
+            node = node->next_;
+
+        } while (node != &freeList_);
     }
 
 #endif
 
-    static constexpr std::size_t Size_ = sizeof(T) > sizeof(free_node_t) ? sizeof(T) : sizeof(free_node_t);
+    static
+    std::size_t
+    align_up(std::size_t n) noexcept {
+        return (n + (alignment - 1)) & ~(alignment - 1);
+    }
+
 };
 
 }
