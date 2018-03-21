@@ -36,7 +36,7 @@ public:
 
             freeList_(0) {
 
-        std::size_t offset = alignment - 1;
+        std::size_t const offset = alignment - 1;
 
         base_ = (uint8 *) ::malloc(size + offset);
         if (!base_) {
@@ -71,7 +71,8 @@ public:
     }
 
     void *
-    allocate(std::size_t size) {
+    allocate(std::size_t size) noexcept {
+
         void *ret = removeFree(size);
 
 #ifndef NDEBUG
@@ -85,7 +86,8 @@ public:
     }
 
     void
-    deallocate(void *p, std::size_t size) {
+    deallocate(void *p, std::size_t size) noexcept {
+
         addFree(p, size);
 
 #ifndef NDEBUG
@@ -165,7 +167,7 @@ private:
     }
 
     void
-    addFree(void *p, std::size_t size) {
+    addFree(void *p, std::size_t size) noexcept {
 
         /*
          * insert new in address order
@@ -208,13 +210,12 @@ private:
         }
 
         freeList_.size_ += blocks;
-
     }
 
 #ifndef NDEBUG
 
     void
-    printFree() {
+    printFree() noexcept {
 
         free_node_t *node = &freeList_;
         do {
@@ -228,12 +229,6 @@ private:
     }
 
 #endif
-
-    static
-    std::size_t
-    align_up(std::size_t n) noexcept {
-        return (n + (alignment - 1)) & ~(alignment - 1);
-    }
 
 };
 
