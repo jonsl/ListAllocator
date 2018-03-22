@@ -40,7 +40,9 @@ public:
 
         std::size_t const offset = alignment - 1;
 
-        base_ = (uint8 *) ::malloc(size * sizeof(free_node_t) + offset);
+        std::size_t blocks = sizeToBlocks(size);
+
+        base_ = (uint8 *) ::malloc(blocks * sizeof(free_node_t) + offset);
         if (!base_) {
 
             /*
@@ -49,19 +51,19 @@ public:
             throw std::bad_alloc();
 
         }
-        ::memset(base_, 0, size * sizeof(free_node_t) + offset);
+        ::memset(base_, 0, blocks * sizeof(free_node_t) + offset);
 
-        size_ = size * sizeof(free_node_t);
+        size_ = blocks * sizeof(free_node_t);
 
         list_init(&freeList_);
-        freeList_.size_ = size;
+        freeList_.size_ = size_;
 
         /*
          * align free list
          */
         auto alignedBase = getAlignedBase();
 
-        auto node = new(alignedBase) free_node_t(size);
+        auto node = new(alignedBase) free_node_t(blocks);
 
         list_insert_after(&freeList_, node);
 
@@ -120,6 +122,28 @@ public:
 #endif
     }
 
+    std::size_t
+    getFree() {
+        return freeList_.size_;
+    }
+
+    std::size_t
+    getLargestContiguousFree() {
+
+        std::size_t largestContiguousFree = 0;
+
+        free_node_t *node = freeList_.next_;
+
+        while (node != &freeList_) {
+
+            if (node->size_ > largestContiguousFree) {
+                largestContiguousFree = node->size_;
+            }
+        }
+
+        return largestContiguousFree * sizeof(free_node_t);
+    }
+
 private:
 
     uint8 *base_;
@@ -172,7 +196,7 @@ private:
                     node += node->size_;
                 }
 
-                freeList_.size_ -= blocks;
+                freeList_.size_ -= blocks * sizeof(free_node_t);
 
                 return node;
             }
@@ -254,7 +278,7 @@ private:
             std::cout << "merge next" << std::endl;
         }
 
-        freeList_.size_ += blocks;
+        freeList_.size_ += blocks * sizeof(free_node_t);
     }
 
     std::size_t const
@@ -291,7 +315,7 @@ private:
                 return false;
             }
 
-            total += node->size_;
+            total += node->size_ * sizeof(free_node_t);
 
             node = next;
         }

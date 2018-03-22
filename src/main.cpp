@@ -94,7 +94,7 @@ int main(int argc, char const *const *argv) {
 //    stringAlloc.deallocate(myString, 3);
 
 
-    magn::Allocator<> allocator_1(8192);
+    magn::Allocator<> allocator_1(256 * 1024);
 
 //    magn::Allocator<> allocator_2(2048);
 
