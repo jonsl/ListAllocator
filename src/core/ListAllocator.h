@@ -42,11 +42,18 @@ public:
             allocator_(rhs.allocator_) {}
 
     pointer allocate(std::size_t n) {
-        return static_cast<pointer>(allocator_->allocate(n));//, alignof(T)));
+
+        auto mem = static_cast<pointer>(allocator_->allocate(n * sizeof(T)));
+
+        if (!mem) {
+            throw std::bad_alloc();
+        }
+
+        return mem;
     }
 
     void deallocate(pointer p, std::size_t n) {
-        allocator_->deallocate(p, n);
+        allocator_->deallocate(p, n * sizeof(T));
     }
 
     template<typename U>

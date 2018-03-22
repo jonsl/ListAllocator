@@ -31,7 +31,7 @@ std::ostream &operator<<(std::ostream &out, const A &a) {
 }
 
 struct node_t {
-    node_t* next_;
+    node_t *next_;
     std::size_t size_;
 };
 
@@ -42,28 +42,23 @@ int main(int argc, char const *const *argv) {
         std::cout << "exception: " << error.what() << std::endl;
     }
 
-    size_t s = sizeof(node_t);
 
-    int n = 17;
+//    magn::Allocator<> allocator_1(4096);
+//
+//
+//    char* ptr_1 = (char*)allocator_1.allocate(10);
+//    char* ptr_2 = (char*)allocator_1.allocate(20);
+//    char* ptr_3 = (char*)allocator_1.allocate(30);
+//    char* ptr_4 = (char*)allocator_1.allocate(40);
+//    char* ptr_5 = (char*)allocator_1.allocate(50);
+//
+//    allocator_1.deallocate(ptr_2, 20);
+//    allocator_1.deallocate(ptr_4, 40);
+//    allocator_1.deallocate(ptr_3, 30);
+//    allocator_1.deallocate(ptr_1, 10);
+//    allocator_1.deallocate(ptr_5, 50);
 
-    size_t nunits = (n + sizeof(node_t) - 1) / sizeof(node_t);
 
-
-
-    magn::Allocator<> allocator_1(4096);
-
-
-    char* ptr_1 = (char*)allocator_1.allocate(10);
-    char* ptr_2 = (char*)allocator_1.allocate(20);
-    char* ptr_3 = (char*)allocator_1.allocate(30);
-    char* ptr_4 = (char*)allocator_1.allocate(40);
-    char* ptr_5 = (char*)allocator_1.allocate(50);
-
-    allocator_1.deallocate(ptr_2, 20);
-    allocator_1.deallocate(ptr_4, 40);
-    allocator_1.deallocate(ptr_3, 30);
-    allocator_1.deallocate(ptr_1, 10);
-    allocator_1.deallocate(ptr_5, 50);
 
 //    magn::ThreadPool threadPool("first", 4, 200);
 
@@ -99,11 +94,13 @@ int main(int argc, char const *const *argv) {
 //    stringAlloc.deallocate(myString, 3);
 
 
-//    magn::Allocator<magn::Task<int >> allocator_1(4096);
-//
-//    magn::Allocator<magn::Task<int >> allocator_2(2048);
-//
-//    std::vector<magn::Task<int>, magn::SA<magn::Task<int>>> v(&allocator_2);
+    magn::Allocator<> allocator_1(8192);
+
+//    magn::Allocator<> allocator_2(2048);
+
+    std::size_t sizeofIntTask = sizeof(magn::Task<int>);
+
+    std::vector<magn::Task<int>, magn::SA<magn::Task<int>>> v(&allocator_1);
 
 //    class TaskCompare {
 //    public:
@@ -111,7 +108,7 @@ int main(int argc, char const *const *argv) {
 //            return lhs.getPriority() < rhs.getPriority();
 //        }
 //    };
-
+//
 //    std::priority_queue<
 //            magn::Task<int>,
 //            std::vector<
@@ -122,55 +119,55 @@ int main(int argc, char const *const *argv) {
 //    > priorityQ(std::less<magn::Task<int >>(), v);
 //
 //    // add some
-//
-//    int i;
-//    for (i = 0; i < 300; ++i) {
-//
-//        auto priority = (uint32) std::rand();
-//
-//        magn::Task<int> t(priority, 25, [](int const &data) -> int {
-//
-//            std::cout << "data: " << data << std::endl;
-//        });
-//
+
+    int i;
+    for (i = 0; i < 300; ++i) {
+
+        auto priority = (uint32) std::rand();
+
+        magn::Task<int> t(priority, 25, [](int const &data) -> int {
+
+            std::cout << "data: " << data << std::endl;
+        });
+
 //        priorityQ.push(t);
-//
-////        v.push_back(t);
-//
-//    }
-//
-//    // delete some
-//
+
+        v.push_back(t);
+
+    }
+
+    // delete some
+
 //    while (!priorityQ.empty()) {
 //
 //        priorityQ.pop();
 //    }
-//
-//
-//
-////    auto it = v.begin();
-////    for (i = 0; it != v.end() && i < 20; ++i) {
-////
-////        it = v.erase(it);
-////
-////    }
-//
-//    // add some
-//
-//    for (i = 0; i < 600; ++i) {
-//
-//        auto priority = (uint32) std::rand();
-//
-//        magn::Task<int> t(priority, 25, [](int const &data) -> int {
-//
-//            std::cout << "data: " << data << std::endl;
-//        });
-//
+
+
+
+    auto it = v.begin();
+    for (i = 0; it != v.end() && i < 20; ++i) {
+
+        it = v.erase(it);
+
+    }
+
+    // add some
+
+    for (i = 0; i < 600; ++i) {
+
+        auto priority = (uint32) std::rand();
+
+        magn::Task<int> t(priority, 25, [](int const &data) -> int {
+
+            std::cout << "data: " << data << std::endl;
+        });
+
 //        priorityQ.push(t);
-////        v.push_back(t);
-//
-//    }
-//
+        v.push_back(t);
+
+    }
+
 //    while (!priorityQ.empty()) {
 //        std::cout << priorityQ.top().getPriority() << std::endl;
 //        priorityQ.pop();

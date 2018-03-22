@@ -38,7 +38,7 @@ public:
 
         std::size_t const offset = alignment - 1;
 
-        base_ = (uint8 *) ::malloc(size + offset);
+        base_ = (uint8 *) ::malloc(size * sizeof(free_node_t) + offset);
         if (!base_) {
 
             /*
