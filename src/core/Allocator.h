@@ -52,6 +52,10 @@ public:
         list_init(&freeList_);
         freeList_.size_ = size;
 
+        /*
+         * align free list
+         */
+
         auto node = new((uint8 *) (((size_t) base_ + offset) & ~(alignment - 1))) free_node_t(size);
 
         list_insert_after(&freeList_, node);
@@ -123,7 +127,7 @@ private:
         free_node_t *prev = &freeList_;
         free_node_t *node = freeList_.next_;
 
-        size_t blocks = (size + sizeof(free_node_t) - 1) / sizeof(free_node_t);
+        size_t blocks = sizeToBlocks(size);
 
         do {
 
@@ -173,7 +177,7 @@ private:
          * insert new in address order
          */
 
-        size_t blocks = (size + sizeof(free_node_t) - 1) / sizeof(free_node_t);
+        size_t blocks = sizeToBlocks(size);
 
         free_node_t *prev = &freeList_;
         free_node_t *node = freeList_.next_;
@@ -186,11 +190,19 @@ private:
 
         if (prev != &freeList_ && prev + prev->size_ == p) {
 
+            /*
+             * merge new into previous
+             */
+
             prev->size_ += blocks;
 
             std::cout << "merge prev" << std::endl;
 
         } else {
+
+            /*
+             * cannot be merged, add new
+             */
 
             auto ins = new(p) free_node_t(blocks);
             list_insert_after(prev, ins);
@@ -202,6 +214,10 @@ private:
 
         if (node != &freeList_ && prev + prev->size_ == node) {
 
+            /*
+             * merge next into previous
+             */
+
             prev->size_ += node->size_;
 
             list_dequeue(node, prev);
@@ -210,6 +226,11 @@ private:
         }
 
         freeList_.size_ += blocks;
+    }
+
+    std::size_t const
+    sizeToBlocks(std::size_t size) {
+        return (size + sizeof(free_node_t) - 1) / sizeof(free_node_t);
     }
 
 #ifndef NDEBUG
