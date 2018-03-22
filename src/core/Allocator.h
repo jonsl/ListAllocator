@@ -34,6 +34,8 @@ public:
             :
             base_(nullptr),
 
+            size_(0),
+
             freeList_(0) {
 
         std::size_t const offset = alignment - 1;
@@ -47,7 +49,9 @@ public:
             throw std::bad_alloc();
 
         }
-        ::memset(base_, 0, size);
+        ::memset(base_, 0, size * sizeof(free_node_t) + offset);
+
+        size_ = size * sizeof(free_node_t);
 
         list_init(&freeList_);
         freeList_.size_ = size;
@@ -55,14 +59,16 @@ public:
         /*
          * align free list
          */
+        auto alignedBase = getAlignedBase();
 
-        auto node = new((uint8 *) (((size_t) base_ + offset) & ~(alignment - 1))) free_node_t(size);
+        auto node = new(alignedBase) free_node_t(size);
 
         list_insert_after(&freeList_, node);
 
 #ifndef NDEBUG
         printFree();
 #endif
+        assert(checkIntegrity());
     }
 
     Allocator(Allocator const &) = delete;
@@ -79,6 +85,8 @@ public:
 
         void *ret = removeFree(size);
 
+        assert(checkIntegrity());
+
 #ifndef NDEBUG
         std::cout << "allocated size " << size
                   << " at: [" << (void *) ret << "]"
@@ -92,7 +100,17 @@ public:
     void
     deallocate(void *p, std::size_t size) noexcept {
 
-        addFree(p, size);
+        try {
+
+            addFree(p, size);
+
+        } catch (std::bad_alloc &ex) {
+
+            std::cout << "exception: " << ex.what() << std::endl;
+
+        }
+
+        assert(checkIntegrity());
 
 #ifndef NDEBUG
         std::cout << "deallocated size " << size
@@ -105,6 +123,8 @@ public:
 private:
 
     uint8 *base_;
+
+    std::size_t size_;
 
     free_node_t freeList_;
 
@@ -171,7 +191,16 @@ private:
     }
 
     void
-    addFree(void *p, std::size_t size) noexcept {
+    addFree(void *p, std::size_t size) {
+
+        if (!checkValidPointer(p, size)) {
+
+            /*
+             * returned memory invalid
+             */
+
+            throw std::bad_alloc();
+        }
 
         /*
          * insert new in address order
@@ -233,7 +262,42 @@ private:
         return (size + sizeof(free_node_t) - 1) / sizeof(free_node_t);
     }
 
+    uint8 *getAlignedBase() {
+        return (uint8 *) (((size_t) base_ + (alignment - 1)) & ~(alignment - 1));
+    }
+
+    bool
+    checkValidPointer(void *p, std::size_t size) {
+
+        auto alignedBase = getAlignedBase();
+
+        return (alignedBase <= (uint8 *) p && (uint8 *) p + size <= alignedBase + size_);
+    }
+
 #ifndef NDEBUG
+
+    bool
+    checkIntegrity() {
+
+        std::size_t total = 0;
+        free_node_t *node = freeList_.next_;
+
+        while (node != &freeList_) {
+
+            free_node_t *next = node->next_;
+
+            if ((next != &freeList_ && node >= next) || !checkValidPointer(node, node->size_)) {
+
+                return false;
+            }
+
+            total += node->size_;
+
+            node = next;
+        }
+
+        return (total == freeList_.size_);
+    }
 
     void
     printFree() noexcept {
