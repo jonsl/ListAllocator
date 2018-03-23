@@ -45,13 +45,6 @@ public:
     getLargestContiguousFree() const noexcept;
 
 private:
-
-    uint8 *base_;
-
-    std::size_t size_;
-
-    free_node_t freeList_;
-
     void *
     removeFree(std::size_t size) noexcept;
 
@@ -75,6 +68,14 @@ private:
     printFree() noexcept;
 
 #endif
+
+private:
+
+    uint8 *base_;
+
+    std::size_t size_;
+
+    free_node_t freeList_;
 };
 
 }
