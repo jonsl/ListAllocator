@@ -8,11 +8,11 @@
 
 int main(int argc, char const *const *argv) {
 
-    magn::Allocator<> allocator_1(256 * 1024);
+    via::Allocator<> allocator_1(256 * 1024);
 
-//    magn::Allocator<> allocator_2(2048);
+//    via::Allocator<> allocator_2(2048);
 
-    std::vector<int, magn::SA<int>> v(&allocator_1);
+    std::vector<int, via::SA<int>> v(&allocator_1);
 
 
     int i;

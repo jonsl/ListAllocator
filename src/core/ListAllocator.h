@@ -8,7 +8,7 @@
 #include <scoped_allocator>
 #include "Allocator.h"
 
-namespace magn {
+namespace via {
 
 template<typename T>
 class ListAllocator {
