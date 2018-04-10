@@ -9,12 +9,7 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 SET (SRCS
         src/main.cpp
-        src/core/Allocator.h
-        src/core/Allocator.ipp
-        src/core/ListAllocator.cpp
-        src/core/ListAllocator.h
-        src/core/List.h
-        src/core/Config.h)
+        )
 
 SET(INCLUDE_DIRS src/
         src/core/)

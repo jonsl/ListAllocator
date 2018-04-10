@@ -2,17 +2,16 @@
 // Created by jslater on 10/03/18.
 //
 
-#include <core/ListAllocator.h>
+#include <core/list_arena.h>
 #include <vector>
+#include <core/list_alloc.h>
 
 
 int main(int argc, char const *const *argv) {
 
-    via::Allocator<> allocator_1(256 * 1024);
+    via::list_arena<> allocator_1(256 * 1024);
 
-//    via::Allocator<> allocator_2(2048);
-
-    std::vector<int, via::SA<int>> v(&allocator_1);
+    via::list_alloc_vector<int> v(allocator_1);
 
 
     int i;
