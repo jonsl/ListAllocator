@@ -5,9 +5,7 @@
 #ifndef VIA_DLIST_H
 #define VIA_DLIST_H
 
-/**
- * doubly-linked list helpers
- */
+/// Doubly-linked list helpers.
 #define dlist_init(q) \
     (q)->prev_ = (q); \
     (q)->next_= (q)
@@ -25,9 +23,7 @@
     (i)->prev_ = (n); \
     (n)->next_ = (i); \
 
-/**
- * singly-linked list helpers
- */
+/// Singly-linked list helpers.
 #define slist_init(q) \
     (q)->next_= (q)
 
@@ -44,6 +40,7 @@
 
 namespace via {
 
+/// Basic double-linked list structure.
 struct _VIA_DECL dlist_t {
     dlist_t() : prev_(nullptr), next_(nullptr) {}
 
@@ -51,6 +48,7 @@ struct _VIA_DECL dlist_t {
     dlist_t *next_;
 };
 
+/// Basic single-linked list structure.
 struct _VIA_DECL slist_t {
     slist_t() : next_(nullptr) {}
 
@@ -58,6 +56,5 @@ struct _VIA_DECL slist_t {
 };
 
 }
-
 
 #endif //VIA_DLIST_H

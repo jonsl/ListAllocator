@@ -7,8 +7,8 @@
 namespace via {
 
 
-template<std::size_t alignment>
-list_arena<alignment>::list_arena(std::size_t size)
+template<size_t _Align>
+list_arena<_Align>::list_arena(size_t size)
         :
         base_(nullptr),
 
@@ -16,12 +16,11 @@ list_arena<alignment>::list_arena(std::size_t size)
 
         free_list_(0) {
 
-    std::size_t const offset = alignment - 1;
+    size_t blocks = size_to_blocks(size);
 
-    std::size_t blocks = size_to_blocks(size);
+    size_t const total_size = alignment * blocks_to_alignment(blocks);
 
-    base_ = (uint8 *)
-            ::malloc(blocks * sizeof(freelist_t) + offset);
+    base_ = (uint8 *) ::aligned_alloc(alignment, total_size);
 
     if (!base_) {
 
@@ -31,7 +30,13 @@ list_arena<alignment>::list_arena(std::size_t size)
         throw std::bad_alloc();
 
     }
-    ::memset(base_, 0, blocks * sizeof(freelist_t) + offset);
+    ::memset(base_, 0, total_size);
+
+    /*
+     * recompute number of blocks since we may have
+     * more after alignment calculation
+     */
+    blocks = size_to_blocks(total_size);
 
     size_ = blocks * sizeof(freelist_t);
 
@@ -39,29 +44,27 @@ list_arena<alignment>::list_arena(std::size_t size)
     free_list_.size_ = size_;
 
     /*
-     * align the free list
+     * base_ is aligned
      */
-    auto alignedBase = get_aligned(base_);
-
-    auto node = new(alignedBase) freelist_t(blocks);
+    auto node = new(base_) freelist_t(blocks);
 
     slist_insert_after(&free_list_, node);
 
 #ifndef NDEBUG
-    printfree();
+    print_free();
 #endif
     assert(check_integrity());
 }
 
-template<std::size_t alignment>
-list_arena<alignment>::~list_arena() _VIA_NOEXCEPT {
+template<size_t _Align>
+list_arena<_Align>::~list_arena() _VIA_NOEXCEPT {
     ::free(base_);
     base_ = nullptr;
 }
 
-template<std::size_t alignment>
+template<size_t _Align>
 void *
-list_arena<alignment>::allocate(std::size_t size) _VIA_NOEXCEPT {
+list_arena<_Align>::allocate(size_t size) _VIA_NOEXCEPT {
 
     void *ret = remove_free(size);
 
@@ -72,16 +75,16 @@ list_arena<alignment>::allocate(std::size_t size) _VIA_NOEXCEPT {
         std::cout << "allocated size " << size
                   << " at: [" << (void *) ret << "]"
                   << " dump:" << std::endl;
-        printfree();
+        print_free();
 #endif
     }
 
     return ret;
 }
 
-template<std::size_t alignment>
+template<size_t _Align>
 void
-list_arena<alignment>::deallocate(void *p, std::size_t size) {
+list_arena<_Align>::deallocate(void *p, size_t size) {
 
     try {
 
@@ -99,37 +102,37 @@ list_arena<alignment>::deallocate(void *p, std::size_t size) {
     std::cout << "deallocated size " << size
               << " at: [" << (void *) p << "]"
               << " dump:" << std::endl;
-    printfree();
+    print_free();
 #endif
 }
 
-template<std::size_t alignment>
-std::size_t
-list_arena<alignment>::get_free() const _VIA_NOEXCEPT {
+template<size_t _Align>
+size_t
+list_arena<_Align>::get_free() const _VIA_NOEXCEPT {
     return free_list_.size_;
 }
 
-template<std::size_t alignment>
-std::size_t
-list_arena<alignment>::get_largest_contiguous_free() const _VIA_NOEXCEPT {
+template<size_t _Align>
+size_t
+list_arena<_Align>::get_largest_contiguous_free() const _VIA_NOEXCEPT {
 
-    std::size_t largestContiguousFree = 0;
+    size_t largest_contiguous_free = 0;
 
     freelist_t *node = free_list_.next_;
 
     while (node != &free_list_) {
 
-        if (node->size_ > largestContiguousFree) {
-            largestContiguousFree = node->size_;
+        if (node->size_ > largest_contiguous_free) {
+            largest_contiguous_free = node->size_;
         }
     }
 
-    return largestContiguousFree * sizeof(freelist_t);
+    return largest_contiguous_free * sizeof(freelist_t);
 }
 
-template<std::size_t alignment>
+template<size_t _Align>
 void *
-list_arena<alignment>::remove_free(std::size_t size) _VIA_NOEXCEPT {
+list_arena<_Align>::remove_free(size_t size) _VIA_NOEXCEPT {
 
     if (slist_empty(&free_list_)) {
 
@@ -190,9 +193,9 @@ list_arena<alignment>::remove_free(std::size_t size) _VIA_NOEXCEPT {
     return nullptr;
 }
 
-template<std::size_t alignment>
+template<size_t _Align>
 void
-list_arena<alignment>::add_free(void *p, std::size_t size) {
+list_arena<_Align>::add_free(void *p, size_t size) {
 
     if (!check_valid_pointer(p, size)) {
 
@@ -258,34 +261,31 @@ list_arena<alignment>::add_free(void *p, std::size_t size) {
     free_list_.size_ += blocks * sizeof(freelist_t);
 }
 
-template<std::size_t alignment>
-std::size_t const
-list_arena<alignment>::size_to_blocks(std::size_t size) const _VIA_NOEXCEPT {
+template<size_t _Align>
+size_t const
+list_arena<_Align>::size_to_blocks(size_t size) const _VIA_NOEXCEPT {
     return (size + sizeof(freelist_t) - 1) / sizeof(freelist_t);
 }
 
-template<std::size_t alignment>
-uint8 *
-list_arena<alignment>::get_aligned(uint8 *base) const _VIA_NOEXCEPT {
-    return (uint8 *) (((size_t) base + (alignment - 1)) & ~(alignment - 1));
+template<size_t _Align>
+size_t const
+list_arena<_Align>::blocks_to_alignment(size_t blocks) const _VIA_NOEXCEPT {
+    return (blocks * sizeof(freelist_t) + alignment - 1) / alignment;
 }
 
-template<std::size_t alignment>
+template<size_t _Align>
 bool
-list_arena<alignment>::check_valid_pointer(void *p, std::size_t size) const _VIA_NOEXCEPT {
-
-    auto alignedBase = get_aligned(base_);
-
-    return (alignedBase <= (uint8 *) p && (uint8 *) p + size <= alignedBase + size_);
+list_arena<_Align>::check_valid_pointer(void *p, size_t size) const _VIA_NOEXCEPT {
+    return (base_ <= (uint8 *) p && (uint8 *) p + size <= base_ + size_);
 }
 
 #ifndef NDEBUG
 
-template<std::size_t alignment>
+template<size_t _Align>
 bool
-list_arena<alignment>::check_integrity() const _VIA_NOEXCEPT {
+list_arena<_Align>::check_integrity() const _VIA_NOEXCEPT {
 
-    std::size_t total = 0;
+    size_t total = 0;
     freelist_t *node = free_list_.next_;
 
     while (node != &free_list_) {
@@ -305,9 +305,9 @@ list_arena<alignment>::check_integrity() const _VIA_NOEXCEPT {
     return (total == free_list_.size_);
 }
 
-template<std::size_t alignment>
+template<size_t _Align>
 void
-list_arena<alignment>::printfree() _VIA_NOEXCEPT {
+list_arena<_Align>::print_free() _VIA_NOEXCEPT {
 
     freelist_t *node = &free_list_;
     do {

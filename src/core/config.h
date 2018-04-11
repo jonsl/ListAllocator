@@ -5,6 +5,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <cstddef>
 #include <cstdint>
 
 namespace via {
