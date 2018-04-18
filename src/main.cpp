@@ -2,9 +2,9 @@
 // Created by jslater on 10/03/18.
 //
 
-#include <core/list_arena.h>
-#include <vector>
-#include <core/list_alloc.h>
+#define LIST_ARENA_PRINT_DEBUG
+
+#include "container_types.h"
 
 
 int main(int argc, char const *const *argv) {

@@ -2,8 +2,8 @@
 // Created by jslater on 17/03/18.
 //
 
-#ifndef VIA_DLIST_H
-#define VIA_DLIST_H
+#ifndef VIA_LIST_H
+#define VIA_LIST_H
 
 /// Doubly-linked list helpers.
 #define dlist_init(q) \
@@ -41,7 +41,7 @@
 namespace via {
 
 /// Basic double-linked list structure.
-struct _VIA_DECL dlist_t {
+struct dlist_t {
     dlist_t() : prev_(nullptr), next_(nullptr) {}
 
     dlist_t *prev_;
@@ -49,7 +49,7 @@ struct _VIA_DECL dlist_t {
 };
 
 /// Basic single-linked list structure.
-struct _VIA_DECL slist_t {
+struct slist_t {
     slist_t() : next_(nullptr) {}
 
     slist_t *next_;
@@ -57,4 +57,4 @@ struct _VIA_DECL slist_t {
 
 }
 
-#endif //VIA_DLIST_H
+#endif //VIA_LIST_H

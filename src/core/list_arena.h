@@ -2,11 +2,10 @@
 // Created by jslater on 15/03/18.
 //
 
-#ifndef LIST_ARENA_H
-#define LIST_ARENA_H
+#ifndef VIA_LIST_ARENA_H
+#define VIA_LIST_ARENA_H
 
 #include "config.h"
-
 
 namespace via {
 
@@ -14,7 +13,7 @@ namespace via {
 /// Memory is allocated in multiples of blocks of sizeof(freelist_t) to the nearest alignment bytes
 /// \tparam alignment alignment of the allocations
 template<size_t _Align = alignof(std::max_align_t)>
-class _VIA_DECL list_arena {
+class _VIA_PUBLIC list_arena {
 
     struct freelist_t {
         explicit freelist_t(size_t size)
@@ -25,7 +24,9 @@ class _VIA_DECL list_arena {
     };
 
 public:
-    static auto constexpr alignment = _Align;
+
+    static auto constexpr alignment = _Align > alignof(freelist_t) ? _Align : alignof(freelist_t);
+
 
 public:
 
@@ -48,7 +49,7 @@ public:
     /// \param p the pointer to the memory
     /// \param size the size of the memory in bytes
     void
-    deallocate(void *p, size_t size);
+    deallocate(void *p, size_t size) _VIA_NOEXCEPT;
 
     /// get the number of bytes remaining in the free list
     /// \return size in bytes
@@ -65,13 +66,13 @@ private:
     remove_free(size_t size) _VIA_NOEXCEPT;
 
     void
-    add_free(void *p, size_t size);
+    add_free(void *p, size_t size) _VIA_NOEXCEPT;
 
     size_t const
     size_to_blocks(size_t size) const _VIA_NOEXCEPT;
 
-    size_t const
-    blocks_to_alignment(size_t blocks) const _VIA_NOEXCEPT;
+    size_t
+    align_up(size_t n) const _VIA_NOEXCEPT;
 
     bool
     check_valid_pointer(void *p, size_t size) const _VIA_NOEXCEPT;
@@ -93,10 +94,11 @@ private:
     size_t size_;
 
     freelist_t free_list_;
+
 };
 
 }
 
-#include "list_arena.ipp"
+#include "list_arena.tcc"
 
-#endif //LIST_ARENA_H
+#endif //VIA_LIST_ARENA_H

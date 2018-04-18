@@ -1,11 +1,7 @@
 
-#include <cstring>
-#include <cassert>
-#include <iostream>
 #include "list.h"
 
 namespace via {
-
 
 template<size_t _Align>
 list_arena<_Align>::list_arena(size_t size)
@@ -16,9 +12,11 @@ list_arena<_Align>::list_arena(size_t size)
 
         free_list_(0) {
 
+    size = align_up(size);
+
     size_t blocks = size_to_blocks(size);
 
-    size_t const total_size = alignment * blocks_to_alignment(blocks);
+    size_t const total_size = sizeof(freelist_t) * blocks;
 
     base_ = (uint8 *) ::aligned_alloc(alignment, total_size);
 
@@ -32,13 +30,7 @@ list_arena<_Align>::list_arena(size_t size)
     }
     ::memset(base_, 0, total_size);
 
-    /*
-     * recompute number of blocks since we may have
-     * more after alignment calculation
-     */
-    blocks = size_to_blocks(total_size);
-
-    size_ = blocks * sizeof(freelist_t);
+    size_ = total_size;
 
     slist_init(&free_list_);
     free_list_.size_ = size_;
@@ -50,7 +42,7 @@ list_arena<_Align>::list_arena(size_t size)
 
     slist_insert_after(&free_list_, node);
 
-#ifndef NDEBUG
+#ifdef LIST_ARENA_PRINT_DEBUG
     print_free();
 #endif
     assert(check_integrity());
@@ -71,7 +63,7 @@ list_arena<_Align>::allocate(size_t size) _VIA_NOEXCEPT {
     assert(check_integrity());
 
     if (ret) {
-#ifndef NDEBUG
+#ifdef LIST_ARENA_PRINT_DEBUG
         std::cout << "allocated size " << size
                   << " at: [" << (void *) ret << "]"
                   << " dump:" << std::endl;
@@ -84,21 +76,13 @@ list_arena<_Align>::allocate(size_t size) _VIA_NOEXCEPT {
 
 template<size_t _Align>
 void
-list_arena<_Align>::deallocate(void *p, size_t size) {
+list_arena<_Align>::deallocate(void *p, size_t size) _VIA_NOEXCEPT {
 
-    try {
-
-        add_free(p, size);
-
-    } catch (std::bad_alloc &ex) {
-
-        std::cout << "exception: " << ex.what() << std::endl;
-
-    }
+    add_free(p, size);
 
     assert(check_integrity());
 
-#ifndef NDEBUG
+#ifdef LIST_ARENA_PRINT_DEBUG
     std::cout << "deallocated size " << size
               << " at: [" << (void *) p << "]"
               << " dump:" << std::endl;
@@ -150,6 +134,8 @@ list_arena<_Align>::remove_free(size_t size) _VIA_NOEXCEPT {
     freelist_t *prev = &free_list_;
     freelist_t *node = free_list_.next_;
 
+    size = align_up(size);
+
     size_t blocks = size_to_blocks(size);
 
     do {
@@ -195,16 +181,9 @@ list_arena<_Align>::remove_free(size_t size) _VIA_NOEXCEPT {
 
 template<size_t _Align>
 void
-list_arena<_Align>::add_free(void *p, size_t size) {
+list_arena<_Align>::add_free(void *p, size_t size) _VIA_NOEXCEPT {
 
-    if (!check_valid_pointer(p, size)) {
-
-        /*
-         * returned memory invalid
-         */
-
-        throw std::bad_alloc();
-    }
+    assert(check_valid_pointer(p, size) && "invalid pointer passed to add_free");
 
     /*
      * insert new in address order
@@ -229,7 +208,9 @@ list_arena<_Align>::add_free(void *p, size_t size) {
 
         prev->size_ += blocks;
 
+#ifdef LIST_ARENA_PRINT_DEBUG
         std::cout << "merge prev" << std::endl;
+#endif
 
     } else {
 
@@ -242,7 +223,9 @@ list_arena<_Align>::add_free(void *p, size_t size) {
 
         prev = ins;
 
+#ifdef LIST_ARENA_PRINT_DEBUG
         std::cout << "not merge prev" << std::endl;
+#endif
     }
 
     if (node != &free_list_ && prev + prev->size_ == node) {
@@ -255,7 +238,9 @@ list_arena<_Align>::add_free(void *p, size_t size) {
 
         slist_dequeue(node, prev);
 
+#ifdef LIST_ARENA_PRINT_DEBUG
         std::cout << "merge next" << std::endl;
+#endif
     }
 
     free_list_.size_ += blocks * sizeof(freelist_t);
@@ -268,9 +253,9 @@ list_arena<_Align>::size_to_blocks(size_t size) const _VIA_NOEXCEPT {
 }
 
 template<size_t _Align>
-size_t const
-list_arena<_Align>::blocks_to_alignment(size_t blocks) const _VIA_NOEXCEPT {
-    return (blocks * sizeof(freelist_t) + alignment - 1) / alignment;
+size_t
+list_arena<_Align>::align_up(size_t n) const _VIA_NOEXCEPT {
+    return (n + (alignment - 1)) & ~(alignment - 1);
 }
 
 template<size_t _Align>
