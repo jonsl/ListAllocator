@@ -1,5 +1,5 @@
 
-# ListAllocator
+# list_alloc
 
-An allocator based on a singly-linked list, with an wrapper for STL container use.
+A C++11 STL-ready allocator, based on a singly-linked list.
 
