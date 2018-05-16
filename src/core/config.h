@@ -25,9 +25,14 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/utsname.h>
+#include <sys/wait.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <errno.h>
+#include <cerrno>
 
 #include <atomic>
 #include <csignal>
@@ -65,16 +70,14 @@ typedef uint32_t uint32;
 typedef float float32;
 typedef double float64;
 
-namespace via {
-
 /// types
-
-typedef int fd_handle_t;
-static constexpr fd_handle_t invalid_fd_handle(-1);
+typedef int fd_t;
+static constexpr fd_t invalid_fd(-1);
 typedef std::chrono::milliseconds::rep time_msec_t;
 static constexpr time_msec_t invalid_time_msec(-1);
-typedef fd_handle_t socket_t;
 static constexpr int max_processes = 1024;
+
+namespace via {
 
 /// constants
 
@@ -94,7 +97,7 @@ static constexpr int nprocessors_online = _NPROCESSORS_ONLINE;
 
 #if __GNUC__ >= 4
 #   define _VIA_PUBLIC __attribute__ ((visibility ("default")))
-#   define _VIA_LOCAL  __attribute__ ((visibility ("hidden")))
+#   define _VIA_LOCAL __attribute__ ((visibility ("hidden")))
 #else
 #   define _VIA_PUBLIC
 #   define _VIA_LOCAL
@@ -113,6 +116,5 @@ static constexpr int nprocessors_online = _NPROCESSORS_ONLINE;
 #endif
 
 // api
-
 
 #endif //VIA_CONFIG_H

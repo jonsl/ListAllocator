@@ -23,7 +23,7 @@ public:
     using pointer = T *;
     using const_pointer = T const *;
 
-    static auto constexpr alignment = _Align;
+    static constexpr auto alignment = _Align;
     using arena_type = list_arena<alignment>;
 
 private:

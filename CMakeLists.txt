@@ -11,7 +11,6 @@ SET(SRCS
         src/core/config.h
         src/core/container_types.h
         src/core/list.h
-        src/core/list_alloc.cpp
         src/core/list_alloc.h
         src/core/list_arena.h
         src/core/list_arena.tcc
@@ -24,4 +23,3 @@ SET(INCLUDE_DIRS
 ADD_EXECUTABLE(list_alloc ${SRCS})
 
 TARGET_INCLUDE_DIRECTORIES(list_alloc PRIVATE ${INCLUDE_DIRS})
-

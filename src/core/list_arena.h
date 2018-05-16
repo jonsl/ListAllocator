@@ -25,7 +25,7 @@ class _VIA_PUBLIC list_arena {
 
 public:
 
-    static auto constexpr alignment = _Align > alignof(freelist_t) ? _Align : alignof(freelist_t);
+    static constexpr auto alignment = _Align > alignof(freelist_t) ? _Align : alignof(freelist_t);
 
 
 public:
